@@ -44,31 +44,255 @@ pub enum TokenSource {
     GhCli,
 }
 
+pub(crate) trait Keychain: Send + Sync {
+    fn get(&self) -> Result<String, keyring::Error>;
+    fn set(&self, token: &str) -> Result<(), keyring::Error>;
+    fn delete(&self) -> Result<(), keyring::Error>;
+    fn clone_box(&self) -> Box<dyn Keychain>;
+}
+
+impl Clone for Box<dyn Keychain> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct OsKeychain;
+
+impl Keychain for OsKeychain {
+    fn get(&self) -> Result<String, keyring::Error> {
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)?.get_password()
+    }
+
+    fn set(&self, token: &str) -> Result<(), keyring::Error> {
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)?.set_password(token)
+    }
+
+    fn delete(&self) -> Result<(), keyring::Error> {
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)?.delete_credential()
+    }
+
+    fn clone_box(&self) -> Box<dyn Keychain> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GhOutput {
+    pub success: bool,
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+}
+
+pub(crate) trait GhCli: Send + Sync {
+    fn run(&self, args: &[&str]) -> Result<GhOutput, std::io::Error>;
+    fn clone_box(&self) -> Box<dyn GhCli>;
+}
+
+impl Clone for Box<dyn GhCli> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct SystemGh;
+
+#[allow(clippy::disallowed_methods)]
+impl GhCli for SystemGh {
+    fn run(&self, args: &[&str]) -> Result<GhOutput, std::io::Error> {
+        let out = std::process::Command::new("gh").args(args).output()?;
+        Ok(GhOutput {
+            success: out.status.success(),
+            stdout: out.stdout,
+            stderr: out.stderr,
+        })
+    }
+
+    fn clone_box(&self) -> Box<dyn GhCli> {
+        Box::new(self.clone())
+    }
+}
+
+pub(crate) trait GithubHttp: std::fmt::Debug + Send + Sync {
+    fn get(&self, token: &str, path: &str) -> Result<Value, GithubError>;
+    fn send(&self, token: &str, method: &str, path: &str, body: Value) -> Result<(), GithubError>;
+    fn clone_box(&self) -> Box<dyn GithubHttp>;
+}
+
+impl Clone for Box<dyn GithubHttp> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct UreqHttp {
+    agent: ureq::Agent,
+}
+
+impl UreqHttp {
+    pub(crate) fn new() -> Self {
+        let config = ureq::Agent::config_builder()
+            .tls_config(
+                ureq::tls::TlsConfig::builder()
+                    .provider(ureq::tls::TlsProvider::NativeTls)
+                    // The macOS trust store, not a bundled root list.
+                    .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                    .build(),
+            )
+            .http_status_as_error(true)
+            .build();
+        Self {
+            agent: ureq::Agent::new_with_config(config),
+        }
+    }
+}
+
+impl GithubHttp for UreqHttp {
+    fn get(&self, token: &str, path: &str) -> Result<Value, GithubError> {
+        let mut res = self
+            .agent
+            .get(format!("{API}{path}"))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "tern")
+            .call()?;
+        res.body_mut()
+            .read_json::<Value>()
+            .map_err(|e| GithubError::Http(e.to_string()))
+    }
+
+    fn send(&self, token: &str, method: &str, path: &str, body: Value) -> Result<(), GithubError> {
+        let builder = match method {
+            "POST" => self.agent.post(format!("{API}{path}")),
+            _ => self.agent.patch(format!("{API}{path}")),
+        };
+        builder
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "tern")
+            .send_json(body)?;
+        Ok(())
+    }
+
+    fn clone_box(&self) -> Box<dyn GithubHttp> {
+        Box::new(self.clone())
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_KEYCHAIN: std::cell::RefCell<Option<Box<dyn Keychain>>> = const { std::cell::RefCell::new(None) };
+    static TEST_GH: std::cell::RefCell<Option<Box<dyn GhCli>>> = const { std::cell::RefCell::new(None) };
+    static TEST_HTTP: std::cell::RefCell<Option<Box<dyn GithubHttp>>> = const { std::cell::RefCell::new(None) };
+}
+
+pub(crate) fn current_keychain() -> Box<dyn Keychain> {
+    #[cfg(test)]
+    {
+        if let Some(kc) = TEST_KEYCHAIN.with(|k| k.borrow().as_ref().map(|b| b.clone_box())) {
+            return kc;
+        }
+    }
+    Box::new(OsKeychain)
+}
+
+pub(crate) fn current_gh() -> Box<dyn GhCli> {
+    #[cfg(test)]
+    {
+        if let Some(gh) = TEST_GH.with(|g| g.borrow().as_ref().map(|b| b.clone_box())) {
+            return gh;
+        }
+    }
+    Box::new(SystemGh)
+}
+
+pub(crate) fn current_http() -> Box<dyn GithubHttp> {
+    #[cfg(test)]
+    {
+        if let Some(h) = TEST_HTTP.with(|h| h.borrow().as_ref().map(|b| b.clone_box())) {
+            return h;
+        }
+    }
+    Box::new(UreqHttp::new())
+}
+
+#[cfg(test)]
+pub(crate) struct KeychainGuard;
+#[cfg(test)]
+impl Drop for KeychainGuard {
+    fn drop(&mut self) {
+        TEST_KEYCHAIN.with(|k| *k.borrow_mut() = None);
+    }
+}
+#[cfg(test)]
+pub(crate) fn set_test_keychain(kc: Box<dyn Keychain>) -> KeychainGuard {
+    TEST_KEYCHAIN.with(|k| *k.borrow_mut() = Some(kc));
+    KeychainGuard
+}
+
+#[cfg(test)]
+pub(crate) struct GhGuard;
+#[cfg(test)]
+impl Drop for GhGuard {
+    fn drop(&mut self) {
+        TEST_GH.with(|g| *g.borrow_mut() = None);
+    }
+}
+#[cfg(test)]
+pub(crate) fn set_test_gh(gh: Box<dyn GhCli>) -> GhGuard {
+    TEST_GH.with(|g| *g.borrow_mut() = Some(gh));
+    GhGuard
+}
+
+#[cfg(test)]
+pub(crate) struct HttpGuard;
+#[cfg(test)]
+impl Drop for HttpGuard {
+    fn drop(&mut self) {
+        TEST_HTTP.with(|h| *h.borrow_mut() = None);
+    }
+}
+#[cfg(test)]
+pub(crate) fn set_test_http(http: Box<dyn GithubHttp>) -> HttpGuard {
+    TEST_HTTP.with(|h| *h.borrow_mut() = Some(http));
+    HttpGuard
+}
+
 /// The token from the Keychain, else from `gh auth token`.
 ///
 /// # Errors
 /// [`GithubError::NoToken`] when neither has one.
 pub fn token() -> Result<(String, TokenSource), GithubError> {
-    if let Ok(entry) = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-        && let Ok(t) = entry.get_password()
+    token_with(&*current_keychain(), &*current_gh())
+}
+
+pub(crate) fn token_with(
+    keychain: &dyn Keychain,
+    gh: &dyn GhCli,
+) -> Result<(String, TokenSource), GithubError> {
+    if let Ok(t) = keychain.get()
         && !t.trim().is_empty()
     {
         return Ok((t, TokenSource::Keychain));
     }
-    gh_token()
+    gh_token_with(gh)
         .map(|t| (t, TokenSource::GhCli))
         .ok_or(GithubError::NoToken)
 }
 
 // Runs on a background thread, never on an executor, so the blocking call is fine here.
-#[allow(clippy::disallowed_methods)]
-fn gh_token() -> Option<String> {
-    let out = std::process::Command::new("gh")
-        .args(["auth", "token"])
-        .output()
-        .ok()?;
+#[allow(clippy::disallowed_methods, dead_code)]
+pub(crate) fn gh_token() -> Option<String> {
+    gh_token_with(&*current_gh())
+}
+
+pub(crate) fn gh_token_with(gh: &dyn GhCli) -> Option<String> {
+    let out = gh.run(&["auth", "token"]).ok()?;
     let t = String::from_utf8(out.stdout).ok()?.trim().to_owned();
-    (out.status.success() && !t.is_empty()).then_some(t)
+    (out.success && !t.is_empty()).then_some(t)
 }
 
 /// Stores a pasted token in the macOS Keychain.
@@ -76,8 +300,12 @@ fn gh_token() -> Option<String> {
 /// # Errors
 /// [`GithubError::Keychain`] when the Keychain refuses.
 pub fn save_token(token: &str) -> Result<(), GithubError> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-        .and_then(|e| e.set_password(token.trim()))
+    save_token_with(&*current_keychain(), token)
+}
+
+pub(crate) fn save_token_with(keychain: &dyn Keychain, token: &str) -> Result<(), GithubError> {
+    keychain
+        .set(token.trim())
         .map_err(|e| GithubError::Keychain(e.to_string()))
 }
 
@@ -86,9 +314,11 @@ pub fn save_token(token: &str) -> Result<(), GithubError> {
 /// # Errors
 /// [`GithubError::Keychain`] when the Keychain refuses.
 pub fn forget_token() -> Result<(), GithubError> {
-    match keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-        .and_then(|e| e.delete_credential())
-    {
+    forget_token_with(&*current_keychain())
+}
+
+pub(crate) fn forget_token_with(keychain: &dyn Keychain) -> Result<(), GithubError> {
+    match keychain.delete() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(GithubError::Keychain(e.to_string())),
     }
@@ -115,7 +345,7 @@ pub struct RemoteBundle {
 
 #[derive(Debug)]
 pub struct Gist {
-    agent: ureq::Agent,
+    http: Box<dyn GithubHttp>,
     token: String,
 }
 
@@ -127,33 +357,15 @@ struct GistSummary {
 
 impl Gist {
     pub fn new(token: String) -> Self {
-        let config = ureq::Agent::config_builder()
-            .tls_config(
-                ureq::tls::TlsConfig::builder()
-                    .provider(ureq::tls::TlsProvider::NativeTls)
-                    // The macOS trust store, not a bundled root list.
-                    .root_certs(ureq::tls::RootCerts::PlatformVerifier)
-                    .build(),
-            )
-            .http_status_as_error(true)
-            .build();
-        Self {
-            agent: ureq::Agent::new_with_config(config),
-            token,
-        }
+        Self::with_http(current_http(), token)
+    }
+
+    pub(crate) fn with_http(http: Box<dyn GithubHttp>, token: String) -> Self {
+        Self { http, token }
     }
 
     fn get(&self, path: &str) -> Result<Value, GithubError> {
-        let mut res = self
-            .agent
-            .get(format!("{API}{path}"))
-            .header("Authorization", format!("Bearer {}", self.token))
-            .header("Accept", "application/vnd.github+json")
-            .header("User-Agent", "tern")
-            .call()?;
-        res.body_mut()
-            .read_json::<Value>()
-            .map_err(|e| GithubError::Http(e.to_string()))
+        self.http.get(&self.token, path)
     }
 
     fn find(&self) -> Result<Option<String>, GithubError> {
@@ -229,25 +441,24 @@ impl Gist {
             VAULT: { "content": B64.encode(vault) },
             DATA: { "content": B64.encode(sealed) },
         });
-        let request = |method: &str, path: String, body: Value| -> Result<(), GithubError> {
-            let builder = match method {
-                "POST" => self.agent.post(format!("{API}{path}")),
-                _ => self.agent.patch(format!("{API}{path}")),
-            };
-            builder
-                .header("Authorization", format!("Bearer {}", self.token))
-                .header("Accept", "application/vnd.github+json")
-                .header("User-Agent", "tern")
-                .send_json(body)?;
-            Ok(())
-        };
         match self.find()? {
-            Some(id) => request("PATCH", format!("/gists/{id}"), json!({ "files": files })),
-            None => request(
+            Some(id) => self.http.send(
+                &self.token,
+                "PATCH",
+                &format!("/gists/{id}"),
+                json!({ "files": files }),
+            ),
+            None => self.http.send(
+                &self.token,
                 "POST",
-                "/gists".into(),
+                "/gists",
                 json!({ "description": DESCRIPTION, "public": false, "files": files }),
             ),
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::disallowed_methods)]
+#[path = "github_tests.rs"]
+mod tests;
