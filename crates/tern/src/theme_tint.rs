@@ -8,7 +8,7 @@
 use gpui::{Hsla, hsla};
 use tern_term::TerminalTheme;
 
-use crate::theme::{Theme, hex};
+use crate::theme::{Theme, hex, on_accent_for};
 use crate::wallpaper_fx::accent_for;
 use crate::wallpaper_fx::contrast_ratio;
 
@@ -123,6 +123,7 @@ impl Theme {
 
         let accent = accent_for(color, surfaces[2]);
         self.accent = from_rgb(accent);
+        self.on_accent = on_accent_for(self.accent);
         if self.light {
             // A white wash would vanish on a light surface.
             self.row_hover = self.accent.opacity(0.09);
@@ -284,6 +285,46 @@ mod tests {
                 let ratio =
                     contrast_ratio(pack(rgb_of(term.foreground)), pack(rgb_of(term.background)));
                 assert!(ratio >= 4.49, "{color:?}: {ratio}");
+            }
+        }
+    }
+
+    #[test]
+    fn text_on_accent_keeps_contrast_in_light_and_dark_modes() {
+        for base in palettes() {
+            for color in WALLPAPERS {
+                let theme = base.tinted(color);
+                let ratio =
+                    contrast_ratio(pack(rgb_of(theme.on_accent)), pack(rgb_of(theme.accent)));
+                assert!(
+                    ratio >= 4.49,
+                    "on_accent light={} on {color:?}: ratio={ratio}",
+                    base.light
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn built_in_wallpapers_keep_on_accent_contrast() {
+        for b in &crate::wallpaper_gallery::BUILTINS {
+            let img = image::load_from_memory(b.bytes).unwrap();
+            let dominant = crate::wallpaper_fx::extract(
+                img.thumbnail(64, 64).to_rgba8().pixels().map(|p| p.0),
+            )
+            .unwrap();
+            for base in palettes() {
+                let theme = base.tinted(dominant);
+                let ratio =
+                    contrast_ratio(pack(rgb_of(theme.on_accent)), pack(rgb_of(theme.accent)));
+                assert!(
+                    ratio >= 4.49,
+                    "builtin '{}' light={}: ratio={ratio}, accent={:?}, on_accent={:?}",
+                    b.id,
+                    base.light,
+                    rgb_of(theme.accent),
+                    rgb_of(theme.on_accent)
+                );
             }
         }
     }
