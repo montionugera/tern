@@ -128,4 +128,15 @@ mod tests {
             "Connection lost (timeout). Reconnecting in 5s\u{2026} (Enter to retry now, Esc to stop)"
         );
     }
+
+    #[test]
+    fn disconnect_reasons_map_to_notice_labels() {
+        assert_eq!(label(&Disconnect::Timeout), "timeout");
+        assert_eq!(label(&Disconnect::Reset), "connection reset");
+        assert_eq!(label(&Disconnect::ServerClosed), "closed by server");
+        assert_eq!(label(&Disconnect::Unreachable), "unreachable");
+        assert_eq!(label(&Disconnect::Exited(0)), "closed");
+        assert_eq!(label(&Disconnect::Local), "closed");
+        assert_eq!(label(&Disconnect::Failed), "closed");
+    }
 }
