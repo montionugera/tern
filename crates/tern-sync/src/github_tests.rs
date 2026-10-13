@@ -464,3 +464,10 @@ fn gist_push_patches_existing_gist() {
     assert!(body.get("description").is_none());
     assert!(body["files"].is_object());
 }
+
+#[test]
+fn debug_never_shows_the_token() {
+    let g = Gist::new("ghp_secret123".to_owned());
+    assert!(!format!("{g:?}").contains("ghp_secret123"));
+    assert_eq!(format!("{g:?}"), "Gist { .. }");
+}
