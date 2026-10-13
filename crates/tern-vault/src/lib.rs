@@ -394,13 +394,18 @@ mod tests {
     #[test]
     fn set_replaces_and_remove_deletes() {
         let mut v = Vault::new(pass("p"));
+        assert!(v.is_empty());
+        assert_eq!(v.len(), 0);
         v.set(login("grape"), pass("one"));
+        assert!(!v.is_empty());
         v.set(login("grape"), pass("two"));
         assert_eq!(v.len(), 1);
+        assert!(!v.is_empty());
         assert_eq!(v.get(&login("grape")).unwrap().expose_secret(), "two");
         assert!(v.remove(&login("grape")));
         assert!(!v.remove(&login("grape")));
         assert!(v.is_empty());
+        assert_eq!(v.len(), 0);
     }
 
     #[test]
@@ -415,8 +420,10 @@ mod tests {
     #[test]
     fn debug_never_shows_secrets() {
         let mut v = Vault::new(pass("master"));
+        assert_eq!(format!("{v:?}"), "Vault { entries: 0, .. }");
         v.set(login("grape"), pass("hunter2"));
         let shown = format!("{v:?}");
+        assert_eq!(shown, "Vault { entries: 1, .. }");
         assert!(!shown.contains("hunter2") && !shown.contains("master"));
     }
 
@@ -498,8 +505,15 @@ mod tests {
     }
 
     #[test]
+    fn passphrase_exposes_vault_passphrase() {
+        let v = Vault::new(pass("correct horse"));
+        assert_eq!(v.passphrase().expose_secret(), "correct horse");
+    }
+
+    #[test]
     fn wipe_forgets_every_secret_and_the_passphrase() {
         let mut v = Vault::new(pass("master")).with_work_factor(4);
+        assert_eq!(v.passphrase().expose_secret(), "master");
         v.set(login("grape"), pass("hunter2"));
         v.set(ssh_key_entry("laptop"), pass("pem"));
         v.wipe();

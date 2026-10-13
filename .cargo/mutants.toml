@@ -1,0 +1,14 @@
+# Configuration for cargo-mutants.
+#
+# Surviving mutants in functions that make unseamed network requests, invoke external CLIs
+# against live accounts, or touch the macOS Keychain are excluded here per issue #48 until
+# test seams are introduced.
+
+exclude_re = [
+    # Live GitHub API and Keychain calls in tern-sync (issue #48)
+    "tern-sync/src/github\\.rs:.*\\b(token|gh_token|save_token|forget_token)\\b",
+    "tern-sync/src/github\\.rs:.*\\bGist::(get|find|fetch|push)\\b",
+
+    # Live GitHub CLI repo creation in tern-sync (issue #48)
+    "tern-sync/src/gitrepo\\.rs:.*\\bcreate_github_repo\\b",
+]

@@ -322,4 +322,23 @@ mod tests {
         b.push("h2", "mac-b", b"v2", b"s2").unwrap();
         assert_eq!(a.fetch().unwrap().unwrap().hash, "h2");
     }
+
+    #[test]
+    fn ok_extracts_first_non_empty_error_line_or_fails() {
+        let mut out = command(None, &["unknown-command-xyz"]).output().unwrap();
+        assert!(!out.status.success());
+
+        out.stderr = b"\n\n  fatal: could not read repository  \nother details\n".to_vec();
+        assert_eq!(
+            ok(out, "clone").unwrap_err().to_string(),
+            "GitHub: git clone: fatal: could not read repository"
+        );
+
+        let mut out_empty = command(None, &["unknown-command-xyz"]).output().unwrap();
+        out_empty.stderr = b"\n  \t\n".to_vec();
+        assert_eq!(
+            ok(out_empty, "fetch").unwrap_err().to_string(),
+            "GitHub: git fetch: failed"
+        );
+    }
 }
