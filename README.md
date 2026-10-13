@@ -76,15 +76,22 @@ Connected, tern uses 76 MB against Tabby's 580 MB, or 125 MB with a wallpaper. T
 
 ## Keyboard
 
-| Action | Keys | Action | Keys |
-| --- | --- | --- | --- |
-| Host picker | ⌘K | Split right / down | ⌘D / ⌘⇧D |
-| Search hosts | ⇧⌘F | Move between panes | ⌥⌘ + arrows |
-| New connection | ⌘N | Find in scrollback | ⌘F |
-| Snippets | ⇧⌘S | Fill password | ⌘\\ |
-| Browse files | ⇧⌘O | Close pane / tab | ⌘W |
-| Settings | ⌘, | Next / previous tab | ⇧⌘] / ⇧⌘[ |
-| Toggle sidebar | ⌘B | Text size | ⌘= / ⌘− / ⌘0 |
+| Action | macOS | Windows / Linux |
+| --- | --- | --- |
+| Host picker | ⌘K | Ctrl+Shift+K |
+| Search hosts | ⇧⌘F | Ctrl+Alt+F |
+| New connection | ⌘N | Ctrl+Shift+N |
+| Snippets | ⇧⌘S | Ctrl+Alt+S |
+| Browse files | ⇧⌘O | Ctrl+Alt+O |
+| Settings | ⌘, | Ctrl+, |
+| Toggle sidebar | ⌘B | Ctrl+Shift+B |
+| Split right / down | ⌘D / ⌘⇧D | Ctrl+Shift+D / Ctrl+Alt+D |
+| Move between panes | ⌥⌘ + arrows | Ctrl+Alt + arrows |
+| Find in scrollback | ⌘F | Ctrl+Shift+F |
+| Fill password | ⌘\\ | Ctrl+Shift+\\ |
+| Close pane / tab | ⌘W | Ctrl+Shift+W |
+| Next / previous tab | ⇧⌘] / ⇧⌘[ | Ctrl+Shift+] / Ctrl+Shift+[ |
+| Text size | ⌘= / ⌘− / ⌘0 | Ctrl+= / Ctrl+− / Ctrl+0 |
 
 Every shortcut can be rebound in Settings → Shortcuts.
 
@@ -94,7 +101,7 @@ Every shortcut can be rebound in Settings → Shortcuts.
 
 **Download:** get `tern-<version>-macos-arm64.dmg` from [Releases](https://github.com/your-moon/tern/releases), open it, and drag tern to Applications. Releases are signed with a Developer ID and notarised by Apple, so it opens without a warning.
 
-**Windows and Linux (preview):** `tern-<version>-windows-x86_64.zip` and `tern-<version>-linux-<arch>.tar.gz` are on the same Releases page. They build and pass the tests in CI but have not been run on a real Windows or Linux desktop yet; reports are welcome. Shortcuts there use Ctrl+Shift / Ctrl+Alt in place of ⌘ (table in `crates/tern/src/keymap.rs`).
+**Windows and Linux (preview):** `tern-<version>-windows-x86_64.zip` and `tern-<version>-linux-<arch>.tar.gz` are on the same Releases page. They build and pass the tests in CI but have not been run on a real Windows or Linux desktop yet; reports are welcome. Shortcuts there use Ctrl+Shift / Ctrl+Alt in place of ⌘ (see the [Keyboard](#keyboard) table above, or `crates/tern/src/keymap.rs`).
 
 **Build from source** (Rust 1.99+, macOS on Apple silicon):
 

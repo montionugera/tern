@@ -4,6 +4,10 @@ All notable changes to tern are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- README keyboard table lists Windows and Linux shortcuts alongside macOS (#41).
+
 ## [0.1.3] - 2026-10-11
 
 ### Fixed
