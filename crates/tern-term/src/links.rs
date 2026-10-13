@@ -11,16 +11,14 @@ use std::ops::Range;
 
 /// Schemes recognised in plain text. Each must be followed by at least one
 /// body character.
-const SCHEMES: [&str; 4] = ["https://", "http://", "ftp://", "mailto:"];
+const SCHEMES: [&str; 5] = ["https://", "http://", "ftp://", "ftps://", "mailto:"];
 
 /// Whether a click may open `uri`. Applies to OSC 8 targets too, which a
 /// remote program chooses freely (`file:`, `x-apple-...:` and the like would
 /// reach local handlers).
 pub(crate) fn is_openable(uri: &str) -> bool {
     let lower = uri.to_ascii_lowercase();
-    ["https://", "http://", "ftp://", "ftps://", "mailto:"]
-        .iter()
-        .any(|scheme| lower.starts_with(scheme))
+    SCHEMES.iter().any(|scheme| lower.starts_with(scheme))
 }
 
 fn is_body(c: char) -> bool {
@@ -209,7 +207,7 @@ mod tests {
 
     #[test]
     fn a_bare_scheme_is_not_a_link() {
-        for scheme in ["https://", "http://", "ftp://", "mailto:"] {
+        for scheme in SCHEMES {
             let text = format!("see {scheme} now");
             assert_eq!(url_in(&text, scheme), None, "{text}");
         }
@@ -222,6 +220,14 @@ mod tests {
             url_in("see https://", "https"),
             None,
             "scheme at end of line"
+        );
+    }
+
+    #[test]
+    fn ftps_scheme_in_plain_text_is_detected() {
+        assert_eq!(
+            url_in("get ftps://files.a.test/x.tgz now", "ftps").as_deref(),
+            Some("ftps://files.a.test/x.tgz")
         );
     }
 
