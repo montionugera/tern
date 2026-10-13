@@ -4,6 +4,10 @@ All notable changes to tern are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Fixed
+
+- Plain-text `ftps://` links are now detected and clickable in terminal output (#40).
+
 ## [0.1.3] - 2026-10-11
 
 ### Fixed
