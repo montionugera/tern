@@ -25,10 +25,19 @@ pub fn human_size(bytes: u64) -> String {
         value /= 1024.0;
         unit += 1;
     }
+    if unit + 1 < UNITS.len() && format!("{value:.0}") == "1024" {
+        unit += 1;
+        value /= 1024.0;
+    }
     if value >= 10.0 {
         format!("{value:.0} {}", UNITS[unit])
     } else {
-        format!("{value:.1} {}", UNITS[unit])
+        let text = format!("{value:.1}");
+        if text == "10.0" {
+            format!("10 {}", UNITS[unit])
+        } else {
+            format!("{text} {}", UNITS[unit])
+        }
     }
 }
 
@@ -107,8 +116,11 @@ mod tests {
         assert_eq!(human_size(1023), "1023 B");
         assert_eq!(human_size(1024), "1.0 KB");
         assert_eq!(human_size(1536), "1.5 KB");
+        assert_eq!(human_size(10 * 1024 - 1), "10 KB");
         assert_eq!(human_size(10 * 1024), "10 KB");
+        assert_eq!(human_size(1024 * 1024 - 1), "1.0 MB");
         assert_eq!(human_size(5 * 1024 * 1024 + 200 * 1024), "5.2 MB");
+        assert_eq!(human_size(1024 * 1024 * 1024 - 1), "1.0 GB");
         assert_eq!(human_size(3 * 1024 * 1024 * 1024), "3.0 GB");
     }
 
