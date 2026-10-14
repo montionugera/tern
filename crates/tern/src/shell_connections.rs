@@ -717,7 +717,7 @@ pub(super) fn button(
         .rounded(px(8.))
         .text_sm()
         .cursor_pointer()
-        .when(primary, |el| el.bg(t.accent).text_color(gpui::white()))
+        .when(primary, |el| el.bg(t.accent).text_color(t.on_accent))
         .when(!primary, |el| {
             el.hover_fade(format!("form-button-{id}"), t.row_hover, t.row_active)
                 .text_color(t.text)

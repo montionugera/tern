@@ -119,6 +119,8 @@ pub struct Theme {
     pub muted: Hsla,
     pub faint: Hsla,
     pub accent: Hsla,
+    /// Text on an accent background, chosen to keep contrast (at least 4.5:1).
+    pub on_accent: Hsla,
     pub success: Hsla,
     pub danger: Hsla,
     /// Amber: degraded but working (a slow link).
@@ -158,6 +160,7 @@ impl Theme {
             muted: hex(0x62626a),
             faint: hex(0x797981),
             accent: hex(0x5b43e8),
+            on_accent: on_accent_for(hex(0x5b43e8)),
             success: hex(0x15803d),
             danger: hex(0xdc2626),
             warning: hex(0xb45309),
@@ -179,6 +182,7 @@ impl Theme {
             muted: hex(0xa9a9ae),
             faint: hex(0x85858a),
             accent: hex(0x8b7cf6),
+            on_accent: on_accent_for(hex(0x8b7cf6)),
             success: hex(0x34d399),
             danger: hex(0xf87171),
             warning: hex(0xfbbf24),
@@ -270,6 +274,24 @@ pub fn flatten(fg: Hsla, bg: Hsla) -> Hsla {
 
 pub fn hex(value: u32) -> Hsla {
     rgb(value).into()
+}
+
+/// The text colour that sits on `accent`: white or near-black, chosen to keep contrast (at least 4.5:1).
+pub fn on_accent_for(accent: Hsla) -> Hsla {
+    let c = gpui::Rgba::from(accent);
+    let ch = |v: f32| (v * 255.0).round().clamp(0.0, 255.0) as u32;
+    let acc_rgb = ch(c.r) << 16 | ch(c.g) << 8 | ch(c.b);
+    let white_contrast = crate::wallpaper_fx::contrast_ratio(0xff_ffff, acc_rgb);
+    let dark_contrast = crate::wallpaper_fx::contrast_ratio(0x0d_0d_0d, acc_rgb);
+    if white_contrast >= 4.5 {
+        hex(0xff_ffff)
+    } else if dark_contrast >= 4.5 {
+        hex(0x0d_0d_0d)
+    } else if white_contrast >= dark_contrast {
+        hex(0xff_ffff)
+    } else {
+        hex(0x0d_0d_0d)
+    }
 }
 
 pub mod themes {
@@ -421,9 +443,11 @@ mod tests {
         assert_eq!(rgb_of(t.muted), 0x62626a);
         assert_eq!(rgb_of(t.faint), 0x797981);
         assert_eq!(rgb_of(t.accent), 0x5b43e8);
+        assert_eq!(rgb_of(t.on_accent), 0xffffff);
         assert_eq!(rgb_of(t.terminal_background), 0xfafafa);
         assert_eq!(rgb_of(t.popup), 0xffffff);
         assert!(!Theme::zeron_dark().light);
+        assert_eq!(rgb_of(Theme::zeron_dark().on_accent), 0x0d0d0d);
         assert!(Theme::zeron(true).light && !Theme::zeron(false).light);
     }
 
@@ -459,6 +483,7 @@ mod tests {
             assert!(contrast_ratio(rgb_of(t.muted), shell) >= 4.5);
             assert!(contrast_ratio(rgb_of(term.foreground), rgb_of(term.background)) >= 7.0);
             assert!(contrast_ratio(rgb_of(t.accent), shell) >= 3.0);
+            assert!(contrast_ratio(rgb_of(t.on_accent), rgb_of(t.accent)) >= 4.5);
         }
     }
 
