@@ -478,10 +478,15 @@ pub struct RemoteBundle {
     pub sealed: Vec<u8>,
 }
 
-#[derive(Debug)]
 pub struct Gist {
     http: Box<dyn GithubHttp>,
     token: String,
+}
+
+impl std::fmt::Debug for Gist {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Gist").finish_non_exhaustive()
+    }
 }
 
 #[derive(Deserialize)]

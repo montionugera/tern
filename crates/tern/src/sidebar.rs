@@ -206,7 +206,7 @@ fn empty_state(t: &Theme, cx: &mut Context<Shell>) -> impl IntoElement + use<> {
                 .cursor_pointer()
                 .text_size(px(13.))
                 .bg(t.accent)
-                .text_color(gpui::white())
+                .text_color(t.on_accent)
                 .on_click(cx.listener(|s, _, w, cx| s.open_form(None, None, w, cx)))
                 .child("New connection"),
         )

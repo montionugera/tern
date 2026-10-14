@@ -452,3 +452,10 @@ fn unconfigured_seams_in_test_return_error() {
     assert!(http.send("tok", Method::Post, "/test", json!({})).is_err());
     assert!(http.send("tok", Method::Patch, "/test", json!({})).is_err());
 }
+
+#[test]
+fn debug_never_shows_the_token() {
+    let g = Gist::new("ghp_secret123".to_owned());
+    assert!(!format!("{g:?}").contains("ghp_secret123"));
+    assert_eq!(format!("{g:?}"), "Gist { .. }");
+}
