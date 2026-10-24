@@ -1,8 +1,16 @@
 name: ci
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
 jobs:
+  # macOS minutes cost ~10x Linux: PRs run Linux only, macOS runs after merge to main.
   check:
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -20,7 +28,8 @@ jobs:
   # Proves the critical crates' tests can actually fail. Advisory, not a gate:
   # a surviving mutant is a test to strengthen, triaged from the run's output.
   mutants:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
